@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SentinelRAG — Enterprise AI Auditor</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#f8f9fa;--surface:#fff;--border:#e5e7eb;--text:#111;--muted:#6b7280;
+    --accent:#4f46e5;--accent-light:#eef2ff;--success:#16a34a;--success-light:#f0fdf4;
+    --warn:#d97706;--warn-light:#fffbeb;--danger:#dc2626;--danger-light:#fef2f2;
+    --sidebar:240px;--radius:10px;
+  }
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:var(--bg);color:var(--text);display:flex;min-height:100vh;font-size:14px}
+  
+  /* sidebar */
+  .sidebar{width:var(--sidebar);background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;position:fixed;top:0;left:0;height:100vh;z-index:10}
+  .logo{padding:20px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+  .logo-icon{width:32px;height:32px;background:var(--accent);border-radius:8px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:16px}
+  .logo-text{font-size:15px;font-weight:600;letter-spacing:-0.3px}
+  .logo-sub{font-size:11px;color:var(--muted);margin-top:1px}
+  nav{padding:12px 8px;flex:1}
+  .nav-item{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;cursor:pointer;color:var(--muted);font-size:13px;font-weight:500;transition:all 0.15s;margin-bottom:2px}
+  .nav-item:hover{background:var(--bg);color:var(--text)}
+  .nav-item.active{background:var(--accent-light);color:var(--accent)}
+  .nav-item i{font-size:18px}
+  .sidebar-footer{padding:12px 16px;border-top:1px solid var(--border)}
+  .status-dot{width:7px;height:7px;border-radius:50%;background:#22c55e;display:inline-block;margin-right:6px}
+  .status-dot.off{background:#ef4444}
+  
+  /* main */
+  .main{margin-left:var(--sidebar);flex:1;display:flex;flex-direction:column}
+  .topbar{background:var(--surface);border-bottom:1px solid var(--border);padding:14px 24px;display:flex;align-items:center;justify-content:space-between}
+  .page-title{font-size:16px;font-weight:600}
+  .page-sub{font-size:12px;color:var(--muted);margin-top:2px}
+  .content{padding:24px;flex:1}
+  
+  /* panels */
+  .panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:20px}
+  .panel-title{font-size:13px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;gap:8px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px}
+  .panel-title i{font-size:16px}
+  
+  /* metrics */
+  .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+  .metric{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px}
+  .metric-label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px}
+  .metric-value{font-size:24px;font-weight:600;line-height:1}
+  .metric-sub{font-size:11px;color:var(--muted);margin-top:4px}
+  
+  /* upload zone */
+  .upload-zone{border:1.5px dashed var(--border);border-radius:var(--radius);padding:32px;text-align:center;cursor:pointer;transition:all 0.2s;background:var(--bg)}
+  .upload-zone:hover{border-color:var(--accent);background:var(--accent-light)}
+  .upload-zone.dragging{border-color:var(--accent);background:var(--accent-light)}
+  .upload-zone i{font-size:32px;color:var(--muted);margin-bottom:8px;display:block}
+  .upload-zone p{font-size:13px;color:var(--muted)}
+  .upload-zone strong{color:var(--accent)}
+  #file-input{display:none}
+  
+  /* query */
+  .query-box{display:flex;gap:10px;margin-bottom:16px}
+  .query-input{flex:1;padding:10px 14px;border:1px solid var(--border);border-radius:8px;font-size:14px;outline:none;font-family:inherit;background:var(--surface);color:var(--text)}
+  .query-input:focus{border-color:var(--accent)}
+  .btn{padding:10px 18px;border-radius:8px;border:none;cursor:pointer;font-size:13px;font-weight:500;display:flex;align-items:center;gap:6px;transition:all 0.15s;font-family:inherit}
+  .btn-primary{background:var(--accent);color:#fff}
+  .btn-primary:hover{opacity:0.9}
+  .btn-primary:disabled{opacity:0.5;cursor:not-allowed}
+  .btn-ghost{background:var(--bg);color:var(--text);border:1px solid var(--border)}
+  .btn-ghost:hover{background:var(--border)}
+  
+  /* answer */
+  .answer-box{display:none;border-radius:var(--radius);overflow:hidden;border:1px solid var(--border)}
+  .answer-header{padding:12px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border)}
+  .answer-body{padding:16px;font-size:14px;line-height:1.7;color:var(--text)}
+  .blocked-banner{background:var(--danger-light);border:1px solid #fecaca;border-radius:var(--radius);padding:12px 16px;display:flex;align-items:center;gap:10px;color:var(--danger);font-size:13px;font-weight:500;display:none}
+  
+  /* eval scores */
+  .eval-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:12px}
+  .eval-card{border:1px solid var(--border);border-radius:8px;padding:12px}
+  .eval-label{font-size:11px;color:var(--muted);margin-bottom:4px}
+  .eval-score{font-size:20px;font-weight:600}
+  .score-bar{height:4px;border-radius:2px;background:var(--border);margin-top:6px;overflow:hidden}
+  .score-fill{height:100%;border-radius:2px;transition:width 0.5s ease}
+  
+  /* badge */
+  .badge{display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600}
+  .badge-pass{background:var(--success-light);color:var(--success)}
+  .badge-warn{background:var(--warn-light);color:var(--warn)}
+  .badge-fail{background:var(--danger-light);color:var(--danger)}
+  .badge-blocked{background:#fdf2f8;color:#9d174d}
+  
+  /* audit table */
+  .audit-table{width:100%;border-collapse:collapse;font-size:13px}
+  .audit-table th{text-align:left;padding:10px 12px;color:var(--muted);font-weight:500;border-bottom:1px solid var(--border);font-size:11px;text-transform:uppercase;letter-spacing:0.5px}
+  .audit-table td{padding:10px 12px;border-bottom:1px solid var(--border);vertical-align:middle}
+  .audit-table tr:last-child td{border-bottom:none}
+  .audit-table tr:hover td{background:var(--bg)}
+  .query-text{max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .detail-btn{background:none;border:none;color:var(--accent);cursor:pointer;font-size:12px;padding:4px 8px;border-radius:6px;font-family:inherit}
+  .detail-btn:hover{background:var(--accent-light)}
+  
+  /* sources */
+  .sources-list{display:flex;flex-direction:column;gap:8px;margin-top:12px}
+  .source-item{background:var(--bg);border-radius:8px;padding:10px 12px;font-size:12px;color:var(--muted);border-left:3px solid var(--accent);line-height:1.5}
+  
+  /* drill-down modal */
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.4);z-index:100;align-items:center;justify-content:center}
+  .modal-overlay.open{display:flex}
+  .modal{background:var(--surface);border-radius:12px;border:1px solid var(--border);width:540px;max-height:80vh;overflow-y:auto}
+  .modal-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+  .modal-body{padding:20px}
+  .modal-close{background:none;border:none;cursor:pointer;color:var(--muted);font-size:20px;display:flex}
+  .reasoning-block{background:var(--bg);border-radius:8px;padding:12px;font-size:12px;line-height:1.6;color:var(--muted);margin-top:8px;border-left:3px solid var(--border)}
+  
+  /* tabs */
+  .tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:20px}
+  .tab{padding:8px 14px;cursor:pointer;font-size:13px;font-weight:500;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px}
+  .tab.active{color:var(--accent);border-bottom-color:var(--accent)}
+  
+  /* pages */
+  .page{display:none}
+  .page.active{display:block}
+  
+  /* loader */
+  .spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,0.4);border-top-color:#fff;border-radius:50%;animation:spin 0.6s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  
+  /* toast */
+  .toast{position:fixed;bottom:24px;right:24px;background:#111;color:#fff;padding:10px 16px;border-radius:8px;font-size:13px;opacity:0;transform:translateY(8px);transition:all 0.2s;z-index:200;pointer-events:none}
+  .toast.show{opacity:1;transform:translateY(0)}
+  
+  /* file list */
+  .file-tag{display:inline-flex;align-items:center;gap:6px;background:var(--accent-light);color:var(--accent);padding:4px 10px;border-radius:20px;font-size:12px;font-weight:500;margin:4px}
+  
+  /* empty state */
+  .empty{text-align:center;padding:40px 20px;color:var(--muted)}
+  .empty i{font-size:36px;margin-bottom:8px;display:block;opacity:0.4}
+  .empty p{font-size:13px}
+  
+  @media(prefers-color-scheme:dark){
+    :root{--bg:#0f0f10;--surface:#1a1a1b;--border:#2d2d2f;--text:#f3f4f6;--muted:#9ca3af;--accent-light:#1e1b4b;--success-light:#052e16;--warn-light:#1c1506;--danger-light:#1f0a0a}
+  }
+</style>
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="logo">
+    <div class="logo-icon"><i class="ti ti-shield-check" aria-hidden="true"></i></div>
+    <div>
+      <div class="logo-text">SentinelRAG</div>
+      <div class="logo-sub">Enterprise AI Auditor</div>
+    </div>
+  </div>
+  <nav>
+    <div class="nav-item active" onclick="showPage('query')">
+      <i class="ti ti-message-dots" aria-hidden="true"></i> Query
+    </div>
+    <div class="nav-item" onclick="showPage('ingest')">
+      <i class="ti ti-file-upload" aria-hidden="true"></i> Ingest Documents
+    </div>
+    <div class="nav-item" onclick="showPage('audit')">
+      <i class="ti ti-list-details" aria-hidden="true"></i> Audit Trail
+    </div>
+  </nav>
+  <div class="sidebar-footer">
+    <div style="font-size:12px;color:var(--muted);margin-bottom:6px">System Status</div>
+    <div style="font-size:12px;display:flex;align-items:center;margin-bottom:4px">
+      <span class="status-dot" id="backend-dot"></span>
+      <span id="backend-status">Checking backend...</span>
+    </div>
+    <div style="font-size:12px;display:flex;align-items:center">
+      <span class="status-dot off" id="lobster-dot"></span>
+      <span id="lobster-status">Lobster Trap</span>
+    </div>
+  </div>
+</aside>
+
+<main class="main">
+  <div class="topbar">
+    <div>
+      <div class="page-title" id="topbar-title">Query Engine</div>
+      <div class="page-sub" id="topbar-sub">Ask questions over your ingested documents</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center">
+      <button class="btn btn-ghost" onclick="loadAuditLogs()" style="font-size:12px;padding:6px 12px">
+        <i class="ti ti-refresh" aria-hidden="true"></i> Refresh
+      </button>
+    </div>
+  </div>
+
+  <div class="content">
+
+    <!-- QUERY PAGE -->
+    <div class="page active" id="page-query">
+      <div class="metrics">
+        <div class="metric">
+          <div class="metric-label">Total Queries</div>
+          <div class="metric-value" id="m-total">—</div>
+          <div class="metric-sub">this session</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Avg Confidence</div>
+          <div class="metric-value" id="m-conf">—</div>
+          <div class="metric-sub">across all queries</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Blocked</div>
+          <div class="metric-value" id="m-blocked" style="color:var(--danger)">—</div>
+          <div class="metric-sub">by Lobster Trap</div>
+        </div>
+        <div class="metric">
+          <div class="metric-label">Hallucinations</div>
+          <div class="metric-value" id="m-hall" style="color:var(--warn)">—</div>
+          <div class="metric-sub">detected</div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title"><i class="ti ti-search" aria-hidden="true"></i> Ask Your Documents</div>
+        <div class="query-box">
+          <input class="query-input" id="query-input" placeholder="e.g. What is the recommended dosage for Patient X?" onkeydown="if(event.key==='Enter')sendQuery()">
+          <button class="btn btn-primary" id="query-btn" onclick="sendQuery()">
+            <i class="ti ti-send" aria-hidden="true"></i> Ask
+          </button>
+        </div>
+
+        <div class="blocked-banner" id="blocked-banner">
+          <i class="ti ti-shield-x" style="font-size:20px"></i>
+          <div>
+            <div>Query blocked by Lobster Trap</div>
+            <div style="font-size:11px;opacity:0.8;margin-top:2px">Prompt injection or high-risk pattern detected</div>
+          </div>
+        </div>
+
+        <div class="answer-box" id="answer-box">
+          <div class="answer-header">
+            <div style="display:flex;align-items:center;gap:8px">
+              <i class="ti ti-robot" aria-hidden="true" style="font-size:18px;color:var(--muted)"></i>
+              <span style="font-weight:500;font-size:13px">Gemini 3.1 Pro</span>
+            </div>
+            <span class="badge" id="eval-badge"></span>
+          </div>
+          <div class="answer-body" id="answer-text"></div>
+
+          <div style="padding:12px 16px;border-top:1px solid var(--border)">
+            <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:10px">Evaluation Scores</div>
+            <div class="eval-grid">
+              <div class="eval-card">
+                <div class="eval-label">Faithfulness</div>
+                <div class="eval-score" id="score-faith">—</div>
+                <div class="score-bar"><div class="score-fill" id="bar-faith" style="background:var(--success)"></div></div>
+              </div>
+              <div class="eval-card">
+                <div class="eval-label">Relevance</div>
+                <div class="eval-score" id="score-rel">—</div>
+                <div class="score-bar"><div class="score-fill" id="bar-rel" style="background:var(--accent)"></div></div>
+              </div>
+              <div class="eval-card">
+                <div class="eval-label">Confidence</div>
+                <div class="eval-score" id="score-conf">—</div>
+                <div class="score-bar"><div class="score-fill" id="bar-conf" style="background:var(--warn)"></div></div>
+              </div>
+            </div>
+
+            <div style="margin-top:12px;display:flex;align-items:center;gap:8px;font-size:12px">
+              <span style="color:var(--muted)">Hallucination:</span>
+              <span id="hall-indicator" style="font-weight:500"></span>
+            </div>
+          </div>
+        </div>
+
+        <div id="sources-section" style="display:none;margin-top:16px">
+          <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:8px">Source Chunks Used</div>
+          <div class="sources-list" id="sources-list"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- INGEST PAGE -->
+    <div class="page" id="page-ingest">
+      <div class="panel">
+        <div class="panel-title"><i class="ti ti-file-upload" aria-hidden="true"></i> Upload Documents</div>
+        <div class="upload-zone" id="upload-zone" onclick="document.getElementById('file-input').click()" ondragover="handleDragOver(event)" ondrop="handleDrop(event)" ondragleave="this.classList.remove('dragging')">
+          <i class="ti ti-cloud-upload" aria-hidden="true"></i>
+          <p><strong>Click to upload</strong> or drag and drop</p>
+          <p style="margin-top:4px;font-size:12px">PDF or CSV files supported</p>
+        </div>
+        <input type="file" id="file-input" accept=".pdf,.csv" onchange="handleFileSelect(event)">
+
+        <div id="upload-queue" style="margin-top:12px"></div>
+        <div id="upload-result" style="margin-top:12px"></div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title"><i class="ti ti-files" aria-hidden="true"></i> Ingested Documents</div>
+        <div id="doc-list" class="empty">
+          <i class="ti ti-inbox" aria-hidden="true"></i>
+          <p>No documents ingested yet</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- AUDIT PAGE -->
+    <div class="page" id="page-audit">
+      <div class="panel">
+        <div class="panel-title"><i class="ti ti-list-details" aria-hidden="true"></i> Query Audit Trail</div>
+        <div id="audit-content">
+          <div class="empty">
+            <i class="ti ti-database" aria-hidden="true"></i>
+            <p>Loading audit logs...</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</main>
+
+<!-- drill-down modal -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModal(event)">
+  <div class="modal">
+    <div class="modal-header">
+      <div style="font-size:14px;font-weight:600">Evaluation Detail</div>
+      <button class="modal-close" onclick="document.getElementById('modal-overlay').classList.remove('open')">
+        <i class="ti ti-x"></i>
+      </button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const API = 'http://localhost:8000';
+let auditData = [];
+let docList = [];
+
+function showPage(name){
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('page-'+name).classList.add('active');
+  event.currentTarget.classList.add('active');
+  const titles={query:['Query Engine','Ask questions over your ingested documents'],ingest:['Ingest Documents','Upload PDF or CSV files to the vector store'],audit:['Audit Trail','Full history of queries, answers, and eval scores']};
+  document.getElementById('topbar-title').textContent=titles[name][0];
+  document.getElementById('topbar-sub').textContent=titles[name][1];
+  if(name==='audit')loadAuditLogs();
+}
+
+async function checkStatus(){
+  try{
+    const r = await fetch(API+'/status');
+    const d = await r.json();
+    document.getElementById('backend-dot').classList.toggle('off', !d.backend);
+    document.getElementById('backend-status').textContent = d.backend ? 'Backend Online' : 'Backend Offline';
+    document.getElementById('lobster-dot').classList.toggle('off', !d.lobster_trap);
+    document.getElementById('lobster-status').textContent = d.lobster_trap ? 'Lobster Trap ✅' : 'Lobster Trap offline';
+  } catch{
+    document.getElementById('backend-dot').classList.add('off');
+    document.getElementById('backend-status').textContent = 'Backend offline';
+  }
+}
+
+function toast(msg,duration=2500){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show'),duration);
+}
+
+function getBadge(summary,blocked){
+  if(blocked)return'<span class="badge badge-blocked"><i class="ti ti-shield-x"></i> Blocked</span>';
+  if(summary==='PASS')return'<span class="badge badge-pass"><i class="ti ti-check"></i> Pass</span>';
+  if(summary==='WARN')return'<span class="badge badge-warn"><i class="ti ti-alert-triangle"></i> Warn</span>';
+  return'<span class="badge badge-fail"><i class="ti ti-x"></i> Fail</span>';
+}
+
+function scoreColor(v){
+  if(v>=0.7)return'var(--success)';
+  if(v>=0.4)return'var(--warn)';
+  return'var(--danger)';
+}
+
+async function sendQuery(){
+  const q=document.getElementById('query-input').value.trim();
+  if(!q)return;
+  const btn=document.getElementById('query-btn');
+  btn.disabled=true;
+  btn.innerHTML='<div class="spinner"></div> Thinking...';
+  document.getElementById('answer-box').style.display='none';
+  document.getElementById('blocked-banner').style.display='none';
+  document.getElementById('sources-section').style.display='none';
+
+  try{
+    const r=await fetch(API+'/query/',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({query:q})});
+    const d=await r.json();
+
+    if(d.was_blocked){
+      document.getElementById('blocked-banner').style.display='flex';
+      toast('Query blocked by Lobster Trap');
+    } else {
+      const ev=d.eval||{};
+      const faith=ev.faithfulness_score||0;
+      const rel=ev.relevance_score||0;
+      const conf=ev.confidence_score||0;
+      const hall=ev.hallucination_flag||false;
+      const summary=ev.eval_summary||'FAIL';
+
+      document.getElementById('answer-text').textContent=d.answer;
+      document.getElementById('eval-badge').outerHTML='<span class="badge" id="eval-badge">'+getBadge(summary,false)+'</span>';
+      document.getElementById('eval-badge').innerHTML=getBadge(summary,false);
+
+      document.getElementById('score-faith').textContent=(faith*100).toFixed(0)+'%';
+      document.getElementById('score-rel').textContent=(rel*100).toFixed(0)+'%';
+      document.getElementById('score-conf').textContent=(conf*100).toFixed(0)+'%';
+
+      document.getElementById('bar-faith').style.width=(faith*100)+'%';
+      document.getElementById('bar-faith').style.background=scoreColor(faith);
+      document.getElementById('bar-rel').style.width=(rel*100)+'%';
+      document.getElementById('bar-rel').style.background=scoreColor(rel);
+      document.getElementById('bar-conf').style.width=(conf*100)+'%';
+      document.getElementById('bar-conf').style.background=scoreColor(conf);
+
+      document.getElementById('hall-indicator').textContent=hall?'⚠️ Detected':'✅ Clean';
+      document.getElementById('hall-indicator').style.color=hall?'var(--danger)':'var(--success)';
+
+      document.getElementById('answer-box').style.display='block';
+
+      if(d.sources&&d.sources.length){
+        const sl=document.getElementById('sources-list');
+        sl.innerHTML=d.sources.slice(0,3).map(s=>`<div class="source-item">${s.substring(0,200)}${s.length>200?'...':''}</div>`).join('');
+        document.getElementById('sources-section').style.display='block';
+      }
+    }
+    loadMetrics();
+  }catch(e){
+    toast('Error: '+e.message);
+  }
+  btn.disabled=false;
+  btn.innerHTML='<i class="ti ti-send"></i> Ask';
+}
+
+async function loadMetrics(){
+  try{
+    const r=await fetch(API+'/audit/logs?limit=200');
+    const logs=await r.json();
+    document.getElementById('m-total').textContent=logs.length;
+    const blocked=logs.filter(l=>l.hallucination===true||l.status==='FAIL').length;
+    const blockedCount=logs.filter(l=>l.was_blocked).length;
+    const hall=logs.filter(l=>l.hallucination).length;
+    const confs=logs.filter(l=>l.confidence).map(l=>l.confidence);
+    const avgConf=confs.length?confs.reduce((a,b)=>a+b,0)/confs.length:0;
+    document.getElementById('m-conf').textContent=avgConf?(avgConf*100).toFixed(0)+'%':'—';
+    document.getElementById('m-blocked').textContent=blockedCount;
+    document.getElementById('m-hall').textContent=hall;
+  }catch{}
+}
+
+async function loadAuditLogs(){
+  try{
+    const r=await fetch(API+'/audit/logs?limit=50');
+    auditData=await r.json();
+    renderAuditTable(auditData);
+  }catch(e){
+    document.getElementById('audit-content').innerHTML=`<div class="empty"><i class="ti ti-wifi-off"></i><p>Could not load logs — is the backend running?</p></div>`;
+  }
+}
+
+function renderAuditTable(logs){
+  if(!logs.length){
+    document.getElementById('audit-content').innerHTML=`<div class="empty"><i class="ti ti-database"></i><p>No queries logged yet</p></div>`;
+    return;
+  }
+  const rows=logs.map(l=>`
+    <tr>
+      <td style="font-size:11px;color:var(--muted)">${new Date(l.timestamp).toLocaleTimeString()}</td>
+      <td><div class="query-text" title="${l.query}">${l.query}</div></td>
+      <td>${getBadge(l.status,l.was_blocked)}</td>
+      <td style="font-weight:500">${l.confidence?(l.confidence*100).toFixed(0)+'%':'—'}</td>
+      <td>${l.hallucination?'<span style="color:var(--danger);font-size:12px">⚠️ Yes</span>':'<span style="color:var(--success);font-size:12px">✅ No</span>'}</td>
+      <td><button class="detail-btn" onclick="openDetail(${l.id})">Details →</button></td>
+    </tr>
+  `).join('');
+  document.getElementById('audit-content').innerHTML=`
+    <table class="audit-table">
+      <thead><tr>
+        <th>Time</th><th>Query</th><th>Status</th><th>Confidence</th><th>Hallucination</th><th></th>
+      </tr></thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+async function openDetail(id){
+  try{
+    const r=await fetch(API+'/audit/eval/'+id);
+    const d=await r.json();
+    const m=d.metrics||{};
+    document.getElementById('modal-body').innerHTML=`
+      <div style="margin-bottom:16px">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">Status</div>
+        ${getBadge(d.summary,false)}
+      </div>
+      <div class="eval-grid" style="margin-bottom:16px">
+        <div class="eval-card">
+          <div class="eval-label">Faithfulness</div>
+          <div class="eval-score" style="color:${scoreColor(m.faithfulness||0)}">${((m.faithfulness||0)*100).toFixed(0)}%</div>
+          <div class="score-bar"><div class="score-fill" style="width:${(m.faithfulness||0)*100}%;background:${scoreColor(m.faithfulness||0)}"></div></div>
+        </div>
+        <div class="eval-card">
+          <div class="eval-label">Relevance</div>
+          <div class="eval-score" style="color:${scoreColor(m.relevance||0)}">${((m.relevance||0)*100).toFixed(0)}%</div>
+          <div class="score-bar"><div class="score-fill" style="width:${(m.relevance||0)*100}%;background:${scoreColor(m.relevance||0)}"></div></div>
+        </div>
+        <div class="eval-card">
+          <div class="eval-label">Confidence</div>
+          <div class="eval-score" style="color:${scoreColor(m.confidence||0)}">${((m.confidence||0)*100).toFixed(0)}%</div>
+          <div class="score-bar"><div class="score-fill" style="width:${(m.confidence||0)*100}%;background:${scoreColor(m.confidence||0)}"></div></div>
+        </div>
+      </div>
+      <div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:6px">Reasoning Log</div>
+      <div class="reasoning-block">${d.reasoning||'No reasoning available'}</div>
+      <div style="margin-top:12px;font-size:12px;color:var(--muted)">Hallucination: <strong style="color:${m.hallucination?'var(--danger)':'var(--success)'}">${m.hallucination?'Detected':'Clean'}</strong></div>
+    `;
+    document.getElementById('modal-overlay').classList.add('open');
+  }catch(e){toast('Could not load detail')}
+}
+
+function closeModal(e){
+  if(e.target===document.getElementById('modal-overlay'))
+    document.getElementById('modal-overlay').classList.remove('open');
+}
+
+function handleDragOver(e){e.preventDefault();e.currentTarget.classList.add('dragging')}
+function handleDrop(e){
+  e.preventDefault();e.currentTarget.classList.remove('dragging');
+  const file=e.dataTransfer.files[0];
+  if(file)uploadFile(file);
+}
+function handleFileSelect(e){
+  const file=e.target.files[0];
+  if(file)uploadFile(file);
+}
+
+async function uploadFile(file){
+  const ext=file.name.split('.').pop().toLowerCase();
+  if(!['pdf','csv'].includes(ext)){toast('Only PDF or CSV files supported');return;}
+
+  document.getElementById('upload-queue').innerHTML=`<div class="file-tag"><i class="ti ti-loader-2" style="animation:spin 0.6s linear infinite"></i> Uploading ${file.name}...</div>`;
+  document.getElementById('upload-result').innerHTML='';
+
+  const fd=new FormData();
+  fd.append('file',file);
+
+  try{
+    const r=await fetch(API+'/ingest/upload',{method:'POST',body:fd});
+    const d=await r.json();
+    document.getElementById('upload-queue').innerHTML='';
+    if(d.status==='success'){
+      document.getElementById('upload-result').innerHTML=`
+        <div style="background:var(--success-light);border:1px solid #bbf7d0;border-radius:8px;padding:12px 16px;display:flex;align-items:center;gap:10px;color:var(--success);font-size:13px">
+          <i class="ti ti-circle-check" style="font-size:20px"></i>
+          <div><strong>${d.filename}</strong> ingested — ${d.chunks_stored} chunks stored</div>
+        </div>`;
+      docList.push({name:d.filename,chunks:d.chunks_stored,id:d.document_id});
+      renderDocList();
+      toast('Document ingested successfully');
+    }
+  }catch(e){
+    document.getElementById('upload-queue').innerHTML='';
+    document.getElementById('upload-result').innerHTML=`<div style="color:var(--danger);font-size:13px">Upload failed: ${e.message}</div>`;
+  }
+}
+
+function renderDocList(){
+  if(!docList.length){
+    document.getElementById('doc-list').innerHTML=`<div class="empty"><i class="ti ti-inbox"></i><p>No documents ingested yet</p></div>`;
+    return;
+  }
+  document.getElementById('doc-list').innerHTML=docList.map(d=>`
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border)">
+      <div style="display:flex;align-items:center;gap:10px">
+        <i class="ti ti-file-text" style="font-size:20px;color:var(--accent)"></i>
+        <div>
+          <div style="font-size:13px;font-weight:500">${d.name}</div>
+          <div style="font-size:11px;color:var(--muted)">${d.chunks} chunks indexed</div>
+        </div>
+      </div>
+      <span class="badge badge-pass">Indexed</span>
+    </div>`).join('');
+}
+
+checkStatus();
+loadMetrics();
+setInterval(checkStatus,30000);
+</script>
+</body>
+</html>
