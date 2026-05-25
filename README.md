@@ -98,7 +98,7 @@ SentinelRAG doesn't just block bad answers; it explains *why*. Every query is lo
 
 ### 1. Clone & Install Dependencies
 ```bash
-git clone <your-repo-url>
+git clone https://github.com/Anu13lol/sentinelRAG
 cd sentinelrag
 pip install -r requirements.txt
 ```
